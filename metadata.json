@@ -1,6 +1,6 @@
 {
-  "name": "Remix: Gia Sư Toán Lớp 6-9",
-  "description": "Hệ thống gia sư Toán ảo đắc lực cho học sinh THCS tại Việt Nam. AI phân tích đề, gợi mở lý thuyết và hướng dẫn học sinh tự giải từng bước tư duy.",
+  "name": "AI Tutor",
+  "description": "Hệ thống gia sư ảo AI đồng hành học tập, hỗ trợ giải đáp câu hỏi học tập và toán học.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

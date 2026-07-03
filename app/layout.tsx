@@ -1,28 +1,25 @@
-import type {Metadata} from 'next';
-import './globals.css'; // Global styles
-import Script from 'next/script';
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
-  title: 'Gia sư Toán Lớp 6-9 - Kiến tạo Tư duy Toán học',
-  description: 'Hệ thống học toán thông minh dành cho học sinh THCS tại Việt Nam. Học sinh tự giải quyết bài toán từng bước dưới sự định hướng tận tình của gia sư AI.',
+  title: "Gia sư Toán AI",
+  description: "Hệ thống gia sư ảo học tập đồng hành thông minh",
 };
 
-export default function RootLayout({children}: {children: React.ReactNode}) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="vi">
-      <head>
-        <link 
-          rel="stylesheet" 
-          href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" 
-          integrity="sha384-GMR9mG77DX2ddHs+xsKaCX60fYr66NG3yb13Tiu79HYg1xgmRY3ryax0469b8D7F" 
-          crossOrigin="anonymous"
-        />
-      </head>
-      <body suppressHydrationWarning>
-        <Script 
-          src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"
-          strategy="beforeInteractive"
-        />
+    <html lang="vi" className={`${inter.variable}`}>
+      <body className="antialiased bg-slate-50 text-slate-900 font-sans">
         {children}
       </body>
     </html>

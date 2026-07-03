@@ -2,19 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { accessToken, email, phone, grade } = await req.json();
+    const { email, phone, grade, accessToken } = await req.json();
+
+    if (!email || !phone || !grade) {
+      return NextResponse.json(
+        { error: "Vui lòng nhập đầy đủ email, số điện thoại và lớp học." },
+        { status: 400 }
+      );
+    }
 
     if (!accessToken) {
-      return NextResponse.json({ error: "Yêu cầu mã xác thực OAuth (accessToken)" }, { status: 400 });
-    }
-    if (!email || !phone || !grade) {
-      return NextResponse.json({ error: "Thiếu thông tin người học" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Thiếu mã xác thực Google để lưu vào Google Sheets." },
+        { status: 401 }
+      );
     }
 
-    // 1. Search for existing Google Sheet
-    const query = encodeURIComponent("name='Gia Sư Toán Lớp 6-9 - Danh sách Học viên' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
-    const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${query}`;
-    
+    // 1. Search for existing Google Sheet named "AI Tutor Students"
+    const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='AI Tutor Students' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`;
     const searchRes = await fetch(searchUrl, {
       method: "GET",
       headers: {
@@ -24,8 +29,11 @@ export async function POST(req: NextRequest) {
 
     if (!searchRes.ok) {
       const errText = await searchRes.text();
-      console.error("Drive search error:", errText);
-      return NextResponse.json({ error: "Lỗi khi tìm kiếm tệp trên Google Drive", details: errText }, { status: searchRes.status });
+      console.error("Error searching Google Drive:", errText);
+      return NextResponse.json(
+        { error: "Không thể kết nối tới Google Drive của bạn." },
+        { status: 500 }
+      );
     }
 
     const searchData = await searchRes.json();
@@ -35,51 +43,46 @@ export async function POST(req: NextRequest) {
       spreadsheetId = searchData.files[0].id;
     } else {
       // 2. Create a new Google Sheet if not found
-      const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+      const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          properties: {
-            title: "Gia Sư Toán Lớp 6-9 - Danh sách Học viên",
-          },
+          name: "AI Tutor Students",
+          mimeType: "application/vnd.google-apps.spreadsheet",
         }),
       });
 
       if (!createRes.ok) {
         const errText = await createRes.text();
-        console.error("Sheets create error:", errText);
-        return NextResponse.json({ error: "Không thể tạo tệp Google Sheet mới", details: errText }, { status: createRes.status });
+        console.error("Error creating Google Sheet:", errText);
+        return NextResponse.json(
+          { error: "Không thể tạo file Google Sheet mới trên Drive của bạn." },
+          { status: 500 }
+        );
       }
 
       const createData = await createRes.json();
-      spreadsheetId = createData.spreadsheetId;
+      spreadsheetId = createData.id;
 
-      // 3. Initialize header row for newly created sheet
-      const headerRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:D1?valueInputOption=USER_ENTERED`, {
-        method: "PUT",
+      // 3. Initialize headers for new spreadsheet
+      const initUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:append?valueInputOption=RAW`;
+      await fetch(initUrl, {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          range: "A1:D1",
-          majorDimension: "ROWS",
-          values: [
-            ["Gmail", "Số điện thoại", "Lớp học", "Thời gian đăng ký"]
-          ],
+          values: [["Email", "Số điện thoại", "Lớp học", "Ngày đăng ký"]],
         }),
       });
-
-      if (!headerRes.ok) {
-        console.warn("Failed to write headers to Google Sheet:", await headerRes.text());
-      }
     }
 
-    // 4. Append the learner data row to the sheet
-    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A:D:append?valueInputOption=USER_ENTERED`;
+    // 4. Append user info
+    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:append?valueInputOption=RAW`;
     const appendRes = await fetch(appendUrl, {
       method: "POST",
       headers: {
@@ -87,24 +90,29 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        range: "A:D",
-        majorDimension: "ROWS",
-        values: [
-          [email, phone, grade, new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })]
-        ],
+        values: [[email, phone, grade, new Date().toLocaleString("vi-VN")]],
       }),
     });
 
     if (!appendRes.ok) {
       const errText = await appendRes.text();
-      console.error("Sheets append error:", errText);
-      return NextResponse.json({ error: "Lỗi khi lưu thông tin vào Google Sheet", details: errText }, { status: appendRes.status });
+      console.error("Error appending to Google Sheet:", errText);
+      return NextResponse.json(
+        { error: "Không thể lưu thông tin vào Google Sheet." },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ success: true, spreadsheetId });
-
+    return NextResponse.json({
+      success: true,
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    });
   } catch (error: any) {
-    console.error("Save to sheet API error:", error);
-    return NextResponse.json({ error: "Đã xảy ra lỗi hệ thống", details: error.message }, { status: 500 });
+    console.error("Sheet API error:", error);
+    return NextResponse.json(
+      { error: "Có lỗi xảy ra khi lưu thông tin người học." },
+      { status: 500 }
+    );
   }
 }
